@@ -84,11 +84,10 @@ class ChatRunner:
             client = Client(
                 conn=conn,
                 name=conn.request.headers['name'],
-                addr=format_addr(conn.remote_address)
             )
             self._clients.add(client)
             
-            logging.info(f'Connection from {client.addr}')
+            logging.info(f'Connection from {client}')
             
             join_event_json = get_event_json(
                 Events.JOIN,
@@ -97,7 +96,7 @@ class ChatRunner:
             self._clients.broadcast(join_event_json)
 
             async for message in client.conn:
-                logging.info(f'Received "{message}" from {client.addr}; Broadcasting')
+                logging.info(f'Received "{message}" from {client}; Broadcasting')
                 
                 message_event_json = get_event_json(
                     Events.MESSAGE,
@@ -107,11 +106,11 @@ class ChatRunner:
                 self._clients.broadcast(message_event_json)
         
         except ConnectionClosedOK:
-            logging.info(f'Connection for {client.addr} closed gracefully')
+            logging.info(f'Connection for {client} closed gracefully')
         
         except Exception as e:
             logging.error(
-                f'Exception in {client.addr} handler: '
+                f'Exception in {client} handler: '
                 f'{e.__class__}: {str(e) or None}; Connection closed'
             )
         
@@ -122,7 +121,7 @@ class ChatRunner:
             )
             self._clients.broadcast(leave_event_json)
             
-            logging.info(f'{client.addr} disconnected')
+            logging.info(f'{client} disconnected')
             
             await client.destroy()
     

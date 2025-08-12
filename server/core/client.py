@@ -16,7 +16,6 @@ class Client:
         self,
         conn: websockets.ServerConnection,
         name: str,
-        addr: str
     ) -> None:
         """
         Construct a client from the socket connection `conn`.
@@ -24,16 +23,14 @@ class Client:
         Args:
             conn (websockets.ServerConnection): Client connection.
             name (str): Name identifier.
-            addr (str): IP address.
         """
         self._conn: websockets.ServerConnection = conn
         self._name: str = name
-        self._addr: str = addr
         self._on_destroy_callbacks: list[Callable[[Self], Any]] = []
         self._is_active: bool = True
     
     def __repr__(self) -> str:
-        return f'Client(name={self._name}, addr={self._addr})'
+        return f'Client(name={self._name}, addr={self._conn.remote_address})'
     
     @property
     def conn(self):
@@ -42,10 +39,6 @@ class Client:
     @property
     def name(self):
         return self._name
-    
-    @property
-    def addr(self):
-        return self._addr
     
     @property
     def is_active(self):
@@ -85,7 +78,8 @@ class Client:
             # It's important to notify subscribers
             # before destruction, so they can operate
             # on the object while it's still active.
-            for callback in self._on_destroy_callbacks:
+            snapshot = list(self._on_destroy_callbacks)
+            for callback in snapshot:
                 callback(self)
             
             await self._conn.close()
@@ -150,13 +144,16 @@ class ClientList:
         Args:
             message (str): Message to broadcast.
         """
-        websockets.broadcast((c.conn for c in self), message)
+        websockets.broadcast(
+            (client.conn for client in self._clients),
+            message
+        )
     
     def has_name(self, name: str) -> bool:
         """
         Check if a client with `name` is present.
         """
-        return any(client.name == name for client in self)
+        return any(client.name == name for client in self._clients)
     
     def __iter__(self) -> Iterator[Client]:
         return iter(self._clients)
