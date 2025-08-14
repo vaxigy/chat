@@ -1,13 +1,14 @@
 import websockets
-from websockets.exceptions import ConnectionClosedOK
-
 import asyncio
+import json
 import logging
-from http import HTTPStatus
 
-from .client import Client, ClientList
+from websockets.exceptions import ConnectionClosed, ConnectionClosedOK
+from json.decoder import JSONDecodeError
+from .exceptions import InitialValidationFailed, MessageLoopError
+
+from .client import Client, Room, RoomManager, RoomRules
 from .events import Events, get_event_json
-
 from .config import LOGGER_CONFIG
 
 from typing import Coroutine
@@ -16,7 +17,7 @@ logging.basicConfig(**LOGGER_CONFIG)
 logging.getLogger('websockets').setLevel(logging.ERROR)
 
 
-def format_addr(addr: tuple):
+def format_addr(addr: tuple[str, int]) -> str:
     return '{}:{}'.format(*addr)
 
 
@@ -39,91 +40,132 @@ class ChatRunner:
         self._host: str = host
         self._port: int = port
         
-        self._clients: ClientList[Client] = ClientList()
+        self._rooms: RoomManager[Room[Client]] = RoomManager()
     
-    async def _validate_initial_request(
+    async def _handle_initial(
         self,
-        conn: websockets.ServerConnection,
-        request: websockets.http11.Request
+        conn: websockets.ServerConnection
+    ) -> Coroutine[None, None, dict]:
+        """
+        Handler responsible for processing and
+        validating the initial connection stage.
+        
+        Returns:
+            Dictionary containing initial data.
+        
+        Raises:
+            InitialValidationFailed: If something went wrong.
+        """
+        try:
+            message = await conn.recv()
+            
+            client_data = json.loads(message)
+            if not isinstance(client_data, dict):
+                raise ValueError('JSON payload is not a JSON object')
+            
+            required_keys = ['name', 'room_rule']
+            for key in required_keys:
+                if key not in client_data:
+                    raise ValueError(f"'{key}' key missing")
+            
+            for key, value in client_data.items():
+                if not isinstance(value, str):
+                    raise ValueError(f"Non-string type for '{key}'")
+            
+            if client_data['room_rule'] not in RoomRules:
+                raise ValueError("Invalid value for 'room_rule' key")
+            
+            return client_data
+        
+        except ConnectionClosed as e:
+            raise InitialValidationFailed('Connection closed') from e
+        
+        except JSONDecodeError as e:
+            await conn.close(1008, 'Malformed JSON payload')
+            raise InitialValidationFailed('Malformed JSON payload') from e
+        
+        except ValueError as e:
+            await conn.close(1008, str(e))
+            raise InitialValidationFailed(str(e)) from None
+    
+    async def _handle_message_loop(
+        self,
+        client: Client,
+        room: Room
     ) -> Coroutine[None, None, None]:
         """
-        Validate the client connection request.
+        Handler responsible for the client message loop.
         """
-        addr = format_addr(conn.remote_address)
-        name = request.headers.get('name', None)
-        
-        if name is None:
-            reason = 'no name sent'
-            
-            logging.info(f'Rejecting {addr} from connection; Reason: {reason}')
-            
-            return websockets.Response(
-                HTTPStatus.BAD_REQUEST, reason, websockets.Headers()
-            )
-        if self._clients.has_name(name):
-            reason = 'name occupied'
-            
-            logging.info(f'Rejecting {addr} from connection; Reason: {reason}')
-            
-            return websockets.Response(
-                HTTPStatus.FORBIDDEN, reason, websockets.Headers()
-            )
-        
-        logging.info(f'Connection for {addr} approved')
-        
-        return None
+        try:
+            async for message in client.conn:
+                logging.info(
+                    f"Received '{message}' from {client} in room {room.id}; Broadcasting"
+                )
+                message_event_json = get_event_json(
+                    Events.MESSAGE,
+                    sender=client.name,
+                    message=message
+                )
+                room.broadcast(message_event_json)
+        except ConnectionClosedOK:
+            logging.info(f'Connection for {client} in {room.id} closed gracefully')
+        except Exception as e:
+            raise MessageLoopError(e, str(e) or None) from e
     
     async def _handle_client_connection(
         self,
         conn: websockets.ServerConnection
     ) -> Coroutine[None, None, None]:
         """
-        Handle the client connection.
+        Central client connection handler.
         """
+        addr = format_addr(conn.remote_address)
+        logging.info(f'Connection attempt from {addr}')
+        
         try:
-            client = Client(
-                conn=conn,
-                name=conn.request.headers['name'],
+            client_data = await self._handle_initial(conn)
+        except InitialValidationFailed as e:
+            logging.info(
+                f'Connection for {addr} failed during initial validation; '
+                f'Reason: {e}'
             )
-            self._clients.add(client)
-            
-            logging.info(f'Connection from {client}')
-            
+            return
+        
+        client = Client(
+            conn=conn,
+            name=client_data['name']
+        )
+        room = self._rooms.allocate_room(client_data['room_rule'])
+        if room.has_name(client.name):
+            logging.info(
+                f'Rejecting further processing for {client}; '
+                f'Provided name in room {room.id} is occupied'
+            )
+            await conn.close(1008, 'Name occupied')
+            return
+        room.add(client)
+        logging.info(f'Connection from {client} in room {room.id}')
+        
+        try:
             join_event_json = get_event_json(
                 Events.JOIN,
                 sender=client.name
             )
-            self._clients.broadcast(join_event_json)
-
-            async for message in client.conn:
-                logging.info(f'Received "{message}" from {client}; Broadcasting')
-                
-                message_event_json = get_event_json(
-                    Events.MESSAGE,
-                    sender=client.name,
-                    message=message
-                )
-                self._clients.broadcast(message_event_json)
-        
-        except ConnectionClosedOK:
-            logging.info(f'Connection for {client} closed gracefully')
-        
-        except Exception as e:
+            room.broadcast(join_event_json)
+            
+            await self._handle_message_loop(client, room)
+        except MessageLoopError as e:
             logging.error(
-                f'Exception in {client} handler: '
-                f'{e.__class__}: {str(e) or None}; Connection closed'
+                f'Exception in message loop for {client}, room id: {room.id}:\n'
+                f'  {e.args[0].__class__}: {e.args[1]}; Connection closed'
             )
-        
         finally:
             leave_event_json = get_event_json(
                 Events.LEAVE,
                 sender=client.name
             )
-            self._clients.broadcast(leave_event_json)
-            
-            logging.info(f'{client} disconnected')
-            
             await client.destroy()
+            room.broadcast(leave_event_json)
     
     async def _main(self) -> Coroutine[None, None, None]:
         """
@@ -132,8 +174,7 @@ class ChatRunner:
         async with websockets.serve(
             self._handle_client_connection,
             self._host,
-            self._port,
-            process_request=self._validate_initial_request
+            self._port
         ) as server:
             logging.info(f'Server listening on {self._host}:{self._port}')
             await server.serve_forever()

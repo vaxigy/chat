@@ -1,11 +1,18 @@
 import websockets
-
+import enum
+import uuid
 from typing import (
     Iterator,
     Callable,
     Self,
-    Any
+    Any,
+    Coroutine
 )
+
+
+class RoomRules(enum.StrEnum):
+    CREATE = 'CREATE'
+    RANDOM = 'RANDOM'
 
 
 class Client:
@@ -68,7 +75,7 @@ class Client:
         else:
             raise ValueError("'callback' is not subscribed")
     
-    async def destroy(self) -> None:
+    async def destroy(self) -> Coroutine[None, None, None]:
         """
         Activate the destroy event.
         
@@ -88,26 +95,31 @@ class Client:
             self._is_active = False
 
 
-class ClientList:
+class Room:
     """
     Client container.
     
     It guarantees that only active clients
-    are in the list at any given moment.
+    are in the room at any given moment.
     """
     
     def __init__(self) -> None:
         """
-        Construct a ClientList instance.
+        Construct a Room instance.
         """
+        self._id: str = uuid.uuid4().hex
         self._clients: set[Client] = set()
     
     def __repr__(self) -> str:
-        return f'ClientList(clients_count={len(self)})'
+        return f'Room(clients_count={len(self._clients)})'
+    
+    @property
+    def id(self):
+        return self._id
     
     def add(self, client: Client) -> None:
         """
-        Add `client` to the list.
+        Add `client` to the room.
 
         Args:
             client (Client): Client to add.
@@ -123,13 +135,13 @@ class ClientList:
     
     def remove(self, client: Client) -> None:
         """
-        Remove `client` from the list.
+        Remove `client` from the room.
         
         Args:
             client (Client): Client to remove.
         
         Raises:
-            ValueError: If `client` is not in the list.
+            ValueError: If `client` is not in the room.
         """
         if client in self._clients:
             self._clients.remove(client)
@@ -160,3 +172,62 @@ class ClientList:
     
     def __len__(self) -> int:
         return len(self._clients)
+
+
+class RoomManager:
+    def __init__(self) -> None:
+        self._rooms_by_id: dict[str, Room] = {}
+    
+    def create_room(self) -> Room:
+        """
+        Create a new room and add it to the manager.
+        
+        Returns:
+            Created room.
+        """
+        room = Room()
+        self._rooms_by_id[room.id] = room
+        return room
+    
+    def choose_least(self) -> Room:
+        """
+        Choose a room with minimum number of connections.
+        
+        Returns:
+            The least occupied room.
+        
+        Raises:
+            IndexError: If no rooms present.
+        """
+        rooms = self._rooms_by_id.values()
+        if not rooms:
+            raise IndexError('No rooms to choose from')
+        return min(rooms, key=len)
+    
+    def allocate_room(self, room_rule: str) -> Room:
+        """
+        Allocate a room according to `room_rule`.
+        
+        Depending on a rule, it may choose
+        an available room or create a new one.
+        
+        Args:
+            room_rule (str): Allocation rule.
+        
+        Returns:
+            Allocated room object.
+        
+        Raises:
+            ValueError: If `room_rule` is invalid.
+        """
+        match room_rule:
+            case RoomRules.CREATE:
+                room = self.create_room()
+            case RoomRules.RANDOM:
+                try:
+                    room = self.choose_least()
+                except IndexError:
+                    room = self.create_room()
+            case _:
+                raise ValueError(f"'room_rule' must be in {RoomRules}")
+        return room
