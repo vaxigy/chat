@@ -8,7 +8,7 @@ from json.decoder import JSONDecodeError
 from .exceptions import InitialValidationFailed, MessageLoopError
 
 from .client import Client, Room, RoomManager, RoomRules
-from .events import Events, get_event_json
+from .events import Events, create_json_payload
 from .config import LOGGER_CONFIG
 
 from typing import Coroutine
@@ -101,9 +101,9 @@ class ChatRunner:
                 logging.info(
                     f"Received '{message}' from {client} in room {room.id}; Broadcasting"
                 )
-                message_event_json = get_event_json(
+                message_event_json = create_json_payload(
                     Events.MESSAGE,
-                    sender=client.name,
+                    sender_name=client.name,
                     message=message
                 )
                 room.broadcast(message_event_json)
@@ -147,9 +147,10 @@ class ChatRunner:
         logging.info(f'Connection from {client} in room {room.id}')
         
         try:
-            join_event_json = get_event_json(
+            join_event_json = create_json_payload(
                 Events.JOIN,
-                sender=client.name
+                sender_name=client.name,
+                online_count=len(room)
             )
             room.broadcast(join_event_json)
             
@@ -160,11 +161,12 @@ class ChatRunner:
                 f'  {e.args[0].__class__}: {e.args[1]}; Connection closed'
             )
         finally:
-            leave_event_json = get_event_json(
-                Events.LEAVE,
-                sender=client.name
-            )
             await client.destroy()
+            leave_event_json = create_json_payload(
+                Events.LEAVE,
+                sender_name=client_data['name'],
+                online_count=len(room)
+            )
             room.broadcast(leave_event_json)
     
     async def _main(self) -> Coroutine[None, None, None]:
