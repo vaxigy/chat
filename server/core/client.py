@@ -5,8 +5,7 @@ from typing import (
     Iterator,
     Callable,
     Self,
-    Any,
-    Coroutine
+    Any
 )
 
 
@@ -75,7 +74,7 @@ class Client:
         else:
             raise ValueError("'callback' is not subscribed")
     
-    async def destroy(self) -> Coroutine[None, None, None]:
+    async def destroy(self) -> None:
         """
         Activate the destroy event.
         

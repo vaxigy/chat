@@ -11,8 +11,6 @@ from .client import Client, Room, RoomManager, RoomRules
 from .events import Events, create_json_payload
 from .config import LOGGER_CONFIG
 
-from typing import Coroutine
-
 logging.basicConfig(**LOGGER_CONFIG)
 logging.getLogger('websockets').setLevel(logging.ERROR)
 
@@ -45,7 +43,7 @@ class ChatRunner:
     async def _handle_initial(
         self,
         conn: websockets.ServerConnection
-    ) -> Coroutine[None, None, dict]:
+    ) -> dict:
         """
         Handler responsible for processing and
         validating the initial connection stage.
@@ -92,7 +90,7 @@ class ChatRunner:
         self,
         client: Client,
         room: Room
-    ) -> Coroutine[None, None, None]:
+    ) -> None:
         """
         Handler responsible for the client message loop.
         """
@@ -115,7 +113,7 @@ class ChatRunner:
     async def _handle_client_connection(
         self,
         conn: websockets.ServerConnection
-    ) -> Coroutine[None, None, None]:
+    ) -> None:
         """
         Central client connection handler.
         """
@@ -169,7 +167,7 @@ class ChatRunner:
             )
             room.broadcast(leave_event_json)
     
-    async def _main(self) -> Coroutine[None, None, None]:
+    async def _main(self) -> None:
         """
         Private main entrypoint.
         """
