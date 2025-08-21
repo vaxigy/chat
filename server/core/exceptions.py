@@ -1,10 +1,16 @@
-class InitialValidationFailed(Exception):
+class ServerException(Exception):
     """
-    Raised when the initial connection stage fails.
+    Base class for all server exceptions.
     """
 
 
-class MessageLoopError(Exception):
+class ValidationError(ServerException):
     """
-    Raised when the message loop exits with an error.
+    Raised when validation fails.
+    """
+
+
+class HandlerError(ServerException):
+    """
+    Raised when an error occurs in a handler.
     """
