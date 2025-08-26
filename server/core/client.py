@@ -1,6 +1,6 @@
 import websockets
 import enum
-import uuid
+from .word_id import WordIDGenerator
 from typing import (
     Iterator,
     Callable,
@@ -102,15 +102,15 @@ class Room:
     are in the room at any given moment.
     """
     
-    def __init__(self) -> None:
+    def __init__(self, id: str) -> None:
         """
         Construct a Room instance.
         """
-        self._id: str = uuid.uuid4().hex
+        self._id: str = id
         self._clients: set[Client] = set()
     
     def __repr__(self) -> str:
-        return f'Room(clients_count={len(self._clients)})'
+        return f'Room(id={self._id}, clients_count={len(self._clients)})'
     
     @property
     def id(self):
@@ -175,6 +175,7 @@ class Room:
 
 class RoomManager:
     def __init__(self) -> None:
+        self._id_generator: WordIDGenerator = WordIDGenerator()
         self._rooms_by_id: dict[str, Room] = {}
     
     def create_room(self) -> Room:
@@ -184,9 +185,28 @@ class RoomManager:
         Returns:
             Created room.
         """
-        room = Room()
-        self._rooms_by_id[room.id] = room
+        room_id = self._generate_room_id()
+        room = Room(room_id)
+        self._rooms_by_id[room_id] = room
         return room
+    
+    def _generate_room_id(self, max_retries=1000) -> str:
+        """
+        Generate a unique ID that is not occupied by any room.
+        
+        Args:
+            max_retries (int): Number of generation attempts.
+        """
+        retries = 0
+        while retries < max_retries:
+            id = self._id_generator.generate_id()
+            if id not in self._rooms_by_id:
+                return id
+            retries += 1
+        raise ValueError(
+            f'Failed to generate a unique'
+            f'ID after {max_retries} retries.'
+        )
     
     def choose_least(self) -> Room:
         """
