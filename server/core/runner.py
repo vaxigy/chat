@@ -69,7 +69,7 @@ class ChatRunner:
         except HandlerError as e:
             await conn.close(1008, str(e))
             self._logger.info(
-                f'Rejecting further processing for {addr}; Reason: {str(e)}'
+                f'Rejecting further processing for {addr}; Reason: {e}'
             )
             return
         

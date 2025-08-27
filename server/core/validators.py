@@ -7,7 +7,8 @@ from .exceptions import ValidationError
 # Payload schemas for each room rule
 ROOM_RULES_SCHEMAS = {
     RoomRules.CREATE: {'name': str, 'room_rule': str},
-    RoomRules.RANDOM: {'name': str, 'room_rule': str}
+    RoomRules.RANDOM: {'name': str, 'room_rule': str},
+    RoomRules.ID: {'name': str, 'room_rule': str, 'room_id': str}
 }
 
 

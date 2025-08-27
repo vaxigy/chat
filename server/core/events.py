@@ -11,6 +11,7 @@ class Events(enum.StrEnum):
     JOIN = 'JOIN'
     MESSAGE = 'MESSAGE'
     LEAVE = 'LEAVE'
+    INFO = 'INFO'
 
 
 class BuilderKeys(enum.StrEnum):
@@ -20,6 +21,7 @@ class BuilderKeys(enum.StrEnum):
     SENDER_NAME = 'sender_name'
     ONLINE_COUNT = 'online_count'
     MESSAGE = 'message'
+    ROOM_ID = 'room_id'
 
 
 PayloadBuilderT = TypeVar('PayloadBuilderT', bound='JSONPayloadBuilder')
@@ -114,7 +116,7 @@ class JSONPayloadBuilder:
 @update_builder_registry(Events.JOIN, Events.LEAVE)
 class MembershipChangeBuilder(JSONPayloadBuilder):
     """
-    Concrete builder for membership change payload.
+    Concrete builder for the membership change payload.
     """
     _required_data_keys = [BuilderKeys.SENDER_NAME, BuilderKeys.ONLINE_COUNT]
     _assembly_steps = [
@@ -134,7 +136,7 @@ class MembershipChangeBuilder(JSONPayloadBuilder):
 @update_builder_registry(Events.MESSAGE)
 class MessageBuilder(JSONPayloadBuilder):
     """
-    Concrete builder for message payload.
+    Concrete builder for the message payload.
     """
     _required_data_keys = [BuilderKeys.SENDER_NAME, BuilderKeys.MESSAGE]
     _assembly_steps = [
@@ -146,6 +148,23 @@ class MessageBuilder(JSONPayloadBuilder):
     
     def add_message(self) -> Self:
         self._payload['message'] = self._data[BuilderKeys.MESSAGE]
+        return self
+
+
+@update_builder_registry(Events.INFO)
+class InfoBuilder(JSONPayloadBuilder):
+    """
+    Concrete builder for the info payload.
+    """
+    _required_data_keys = [BuilderKeys.ROOM_ID]
+    _assembly_steps = [
+        'add_event_type',
+        'add_timestamp',
+        'add_room_id'
+    ]
+    
+    def add_room_id(self) -> Self:
+        self._payload['room_id'] = self._data[BuilderKeys.ROOM_ID]
         return self
 
 

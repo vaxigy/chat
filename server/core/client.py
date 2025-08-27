@@ -12,6 +12,7 @@ from typing import (
 class RoomRules(enum.StrEnum):
     CREATE = 'CREATE'
     RANDOM = 'RANDOM'
+    ID = 'ID'
 
 
 class Client:
@@ -223,7 +224,24 @@ class RoomManager:
             raise IndexError('No rooms to choose from')
         return min(rooms, key=len)
     
-    def allocate_room(self, room_rule: str) -> Room:
+    def has_id(self, id: str) -> bool:
+        """
+        Whether `id` is occupied by any room.
+        """
+        return id in self._rooms_by_id
+    
+    def select_by_id(self, id: str) -> Room:
+        """
+        Select a room by `id`.
+        
+        Raises:
+            KeyError: If no room with `id` found.
+        """
+        if not self.has_id(id):
+            raise KeyError("'id' is not used by any room")
+        return self._rooms_by_id[id]
+    
+    def allocate_room(self, room_rule: str | RoomRules, **options) -> Room:
         """
         Allocate a room according to `room_rule`.
         
@@ -232,12 +250,14 @@ class RoomManager:
         
         Args:
             room_rule (str): Allocation rule.
+            options: Options specific to a room rule.
         
         Returns:
             Allocated room object.
         
         Raises:
             ValueError: If `room_rule` is invalid.
+            Others: Room rule specific exceptions.
         """
         match room_rule:
             case RoomRules.CREATE:
@@ -247,6 +267,8 @@ class RoomManager:
                     room = self.choose_least()
                 except IndexError:
                     room = self.create_room()
+            case RoomRules.ID:
+                room = self.select_by_id(options['id'])
             case _:
                 raise ValueError(f"'room_rule' must be in {RoomRules}")
         return room

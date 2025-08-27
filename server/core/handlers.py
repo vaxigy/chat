@@ -2,7 +2,7 @@ import websockets
 import logging
 from dataclasses import dataclass
 
-from .client import Client, Room, RoomManager
+from .client import Client, Room, RoomManager, RoomRules
 from .events import Events, create_json_payload
 from .validators import parse_initial_data
 
@@ -46,11 +46,26 @@ async def handle_entry(
     """
     Handler responsible for the client entry.
     """
-    room = ctx.rooms.allocate_room(client_data['room_rule'])
+    if client_data['room_rule'] == RoomRules.ID:
+        if not ctx.rooms.has_id(client_data['room_id']):
+            raise HandlerError('Room ID does not exist')
+        
+        room = ctx.rooms.allocate_room(
+            RoomRules.ID,
+            id=client_data['room_id']
+        )
+    else:
+        room = ctx.rooms.allocate_room(client_data['room_rule'])
+    
     if room.has_name(client_data['name']):
         raise HandlerError(f'Provided name in room {room.id} is occupied')
     
     client = Client(conn, client_data['name'])
+    info_event_json = create_json_payload(
+        Events.INFO,
+        room_id=room.id
+    )
+    await client.conn.send(info_event_json)
     room.add(client)
     return client, room
 
