@@ -3,15 +3,7 @@ import json
 from datetime import datetime
 from typing import Self, Callable, TypeVar, Any
 
-
-class Events(enum.StrEnum):
-    """
-    Server events.
-    """
-    JOIN = 'JOIN'
-    MESSAGE = 'MESSAGE'
-    LEAVE = 'LEAVE'
-    INFO = 'INFO'
+from ..events import Events
 
 
 class BuilderKeys(enum.StrEnum):
@@ -113,10 +105,10 @@ class JSONPayloadBuilder:
         return json.dumps(self._payload)
 
 
-@update_builder_registry(Events.JOIN, Events.LEAVE)
-class MembershipChangeBuilder(JSONPayloadBuilder):
+@update_builder_registry(Events.ROOM_JOIN, Events.ROOM_LEAVE)
+class RoomMembershipChangeBuilder(JSONPayloadBuilder):
     """
-    Concrete builder for the membership change payload.
+    Concrete builder for the room membership change payload.
     """
     _required_data_keys = [BuilderKeys.SENDER_NAME, BuilderKeys.ONLINE_COUNT]
     _assembly_steps = [
@@ -133,28 +125,28 @@ class MembershipChangeBuilder(JSONPayloadBuilder):
         return self
 
 
-@update_builder_registry(Events.MESSAGE)
-class MessageBuilder(JSONPayloadBuilder):
+@update_builder_registry(Events.ROOM_MESSAGE)
+class RoomMessageBuilder(JSONPayloadBuilder):
     """
-    Concrete builder for the message payload.
+    Concrete builder for the room message payload.
     """
     _required_data_keys = [BuilderKeys.SENDER_NAME, BuilderKeys.MESSAGE]
     _assembly_steps = [
         'add_event_type',
         'add_timestamp',
         'add_sender',
-        'add_message'
+        'add_room_message'
     ]
     
-    def add_message(self) -> Self:
+    def add_room_message(self) -> Self:
         self._payload['message'] = self._data[BuilderKeys.MESSAGE]
         return self
 
 
-@update_builder_registry(Events.INFO)
-class InfoBuilder(JSONPayloadBuilder):
+@update_builder_registry(Events.ROOM_INFO)
+class RoomInfoBuilder(JSONPayloadBuilder):
     """
-    Concrete builder for the info payload.
+    Concrete builder for the room info payload.
     """
     _required_data_keys = [BuilderKeys.ROOM_ID]
     _assembly_steps = [
@@ -165,6 +157,25 @@ class InfoBuilder(JSONPayloadBuilder):
     
     def add_room_id(self) -> Self:
         self._payload['room_id'] = self._data[BuilderKeys.ROOM_ID]
+        return self
+
+
+@update_builder_registry(Events.ERROR)
+class ErrorMessageBuilder(JSONPayloadBuilder):
+    """
+    Concrete builder for the server error message payload.
+    """
+    _required_data_keys = [BuilderKeys.MESSAGE]
+    _assembly_steps = [
+        'add_event_type',
+        'add_timestamp',
+        'add_error_message'
+    ]
+    
+    def add_error_message(self) -> Self:
+        self._payload['error'] = {
+            'message': self._data[BuilderKeys.MESSAGE]
+        }
         return self
 
 

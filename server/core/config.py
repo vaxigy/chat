@@ -14,5 +14,5 @@ LOGGER_CONFIG = {
 
 # Paths
 ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
-ADJECTIVES_PATH = ROOT_DIR / 'data' / 'adjectives.txt'
-NOUNS_PATH = ROOT_DIR / 'data' / 'nouns.txt'
+ADJECTIVES_PATH = ROOT_DIR / 'resources' / 'adjectives.txt'
+NOUNS_PATH = ROOT_DIR / 'resources' / 'nouns.txt'

@@ -1,9 +1,10 @@
 import random
 
-from .config import ADJECTIVES_PATH, NOUNS_PATH
+from core.domain.ports import IDGenerator
+from core.config import ADJECTIVES_PATH, NOUNS_PATH
 
 
-class WordIDGenerator:
+class WordIDGenerator(IDGenerator):
     """
     Word-based ID generator.
     
@@ -28,12 +29,12 @@ class WordIDGenerator:
             nouns_path (str): Path to the file with nouns.
             number_len (int): Length of the suffix number.
         """
-        self._adjectives: list[str] = self._load_source(adjectives_path)
-        self._nouns: list[str] = self._load_source(nouns_path)
+        self._adjectives: list[str] = self._load_file(adjectives_path)
+        self._nouns: list[str] = self._load_file(nouns_path)
         self._digits: str = '0123456789'
         self._number_len: int = number_len
     
-    def _load_source(self, path: str) -> list[str]:
+    def _load_file(self, path: str) -> list[str]:
         with open(path) as file:
             return [line.strip() for line in file if line.strip()]
     

@@ -1,6 +1,6 @@
 import logging
 
-from core.runner import ChatRunner
+from core.application.runner import ChatRunner
 from core.config import SERVER_HOST, SERVER_PORT, LOGGER_CONFIG
 
 
@@ -12,12 +12,12 @@ def main():
     logger.addHandler(handler)
     logger.setLevel(LOGGER_CONFIG['level'])
     
-    server = ChatRunner(
+    runner = ChatRunner(
         SERVER_HOST,
         SERVER_PORT,
         logger
     )
-    server.run()
+    runner.run()
 
 
 if __name__ == '__main__':
