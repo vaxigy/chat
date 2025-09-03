@@ -1,7 +1,12 @@
 import logging
 
-from core.application.runner import ChatRunner
+from core.infrastructure.adapters.websocket import (
+    WebSocketServer,
+    WebSocketBroadcaster
+)
+from core.infrastructure.adapters.word_id import WordIDGenerator
 from core.config import SERVER_HOST, SERVER_PORT, LOGGER_CONFIG
+from core.application.runner import ChatRunner
 
 
 def main():
@@ -12,10 +17,17 @@ def main():
     logger.addHandler(handler)
     logger.setLevel(LOGGER_CONFIG['level'])
     
+    server = WebSocketServer()
+    broadcaster = WebSocketBroadcaster()
+    id_generator = WordIDGenerator()
+    
     runner = ChatRunner(
         SERVER_HOST,
         SERVER_PORT,
-        logger
+        server,
+        logger,
+        broadcaster,
+        id_generator
     )
     runner.run()
 

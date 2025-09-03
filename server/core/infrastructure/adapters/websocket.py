@@ -5,6 +5,8 @@ from abc import abstractmethod
 from core.domain.ports import ClientConnection, Broadcaster
 from core.domain.exceptions import ClientDisconnected
 
+from core.application.ports import RealTimeServer
+
 
 class ClientConnectionExtended(ClientConnection):
     """
@@ -65,22 +67,22 @@ class WebSocketBroadcaster(Broadcaster):
         websockets.broadcast((conn.raw() for conn in conns), message)
 
 
-class WebSocketServer:
-    def __init__(
-        self,
-        handler: Callable[
-            [WebSocketConnection], Awaitable[None]
-        ]
-    ) -> None:
+class WebSocketServer(RealTimeServer):
+    def __init__(self) -> None:
         self._handler: Callable[
-            [WebSocketConnection], Awaitable[None]
-        ] = handler
+            [ClientConnection], Awaitable[None]
+        ] | None = None
         self._server: websockets.Server | None = None
     
-    async def serve(self, host: str, port: int) -> None:
-        """
-        Start serving.
-        """
+    async def serve(
+        self,
+        handler: Callable[
+            [ClientConnection], Awaitable[None]
+        ],
+        host: str,
+        port: int,
+    ) -> None:
+        self._handler = handler
         self._server = await websockets.serve(
             self._handler_wrap,
             host,
@@ -89,14 +91,9 @@ class WebSocketServer:
         await self._server.serve_forever()
     
     async def close(self) -> None:
-        """
-        Close the server.
-        
-        If the server is not active, do nothing.
-        """
         if self._server is not None:
             self._server.close()
-            self._server = None
+            self._handler = self._server = None
     
     async def _handler_wrap(
         self,

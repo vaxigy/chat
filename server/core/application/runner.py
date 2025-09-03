@@ -3,13 +3,7 @@ import logging
 
 from core.domain.client import Client
 from core.domain.room import Room, RoomManager
-
-from core.infrastructure.adapters.websocket import (
-    WebSocketServer,
-    WebSocketConnection,
-    WebSocketBroadcaster
-)
-from core.infrastructure.adapters.word_id import WordIDGenerator
+from core.domain.ports import Broadcaster, IDGenerator, ClientConnection
 
 from .handlers import (
     HandlerContext,
@@ -20,6 +14,7 @@ from .handlers import (
 )
 from .utils import format_addr
 from .exceptions import HandlerException
+from .ports import RealTimeServer
 
 
 class ChatRunner:
@@ -35,23 +30,23 @@ class ChatRunner:
         self,
         host: str,
         port: int,
-        logger: logging.Logger
+        server: RealTimeServer,
+        logger: logging.Logger,
+        broadcaster: Broadcaster,
+        id_generator: IDGenerator
     ) -> None:
         """
         Construct a chat runner instance.
-        
-        Args:
-            host (str): Server IP address.
-            port (int): Port number to listen on.
         """
         self._host: str = host
         self._port: int = port
+        self._server: RealTimeServer = server
         
         self._logger: logging.Logger = logger
         
         self._rooms: RoomManager[Room[Client]] = RoomManager(
-            WebSocketBroadcaster(),
-            WordIDGenerator()
+            broadcaster,
+            id_generator
         )
         
         self._ctx: HandlerContext = HandlerContext(
@@ -61,7 +56,7 @@ class ChatRunner:
     
     async def _handle_client_connection(
         self,
-        conn: WebSocketConnection
+        conn: ClientConnection
     ) -> None:
         """
         Central handler that orchestrates the client lifecycle.
@@ -108,14 +103,14 @@ class ChatRunner:
         Private main entrypoint.
         """
         try:
-            server = WebSocketServer(self._handle_client_connection)
             self._logger.info(f'Server listening on {self._host}:{self._port}')
-            await server.serve(
+            await self._server.serve(
+                self._handle_client_connection,
                 self._host,
                 self._port
             )
         finally:
-            await server.close()
+            await self._server.close()
     
     def run(self) -> None:
         """
