@@ -1,3 +1,4 @@
+import logging
 import websockets
 from typing import Iterable, Callable, Awaitable, AsyncIterator
 from abc import abstractmethod
@@ -6,6 +7,8 @@ from core.domain.ports import ClientConnection, Broadcaster
 from core.domain.exceptions import ClientDisconnected
 
 from core.application.ports import RealTimeServer
+
+logging.getLogger('websockets').setLevel(logging.CRITICAL)
 
 
 class ClientConnectionExtended(ClientConnection):
